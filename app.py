@@ -195,9 +195,10 @@ def login_required(f):
 def index():
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT p.*, COUNT(op.prenda_id) as veces_usada FROM prendas p LEFT JOIN outfit_prendas op ON p.id = op.prenda_id GROUP BY p.id ORDER BY veces_usada DESC LIMIT 8")
-            destacados = cur.fetchall()
+        cur = conn.cursor()
+        cur.execute("SELECT p.*, COUNT(op.prenda_id) as veces_usada FROM prendas p LEFT JOIN outfit_prendas op ON p.id = op.prenda_id GROUP BY p.id ORDER BY veces_usada DESC LIMIT 8")
+        destacados = cur.fetchall()
+        cur.close()
     finally:
         conn.close()
     return render_template('index.html', destacados=destacados)
@@ -209,9 +210,10 @@ def login():
         password = request.form['password']
         conn = get_db_connection()
         try:
-            with conn.cursor() as cur:
-                cur.execute("SELECT * FROM usuarios WHERE email = %s", (email,))
-                user = cur.fetchone()
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM usuarios WHERE email = %s", (email,))
+            user = cur.fetchone()
+            cur.close()
         finally:
             conn.close()
         if user and check_password_hash(user['password_hash'], password):
@@ -238,14 +240,16 @@ def register():
             return redirect(url_for('register'))
         conn = get_db_connection()
         try:
-            with conn.cursor() as cur:
-                cur.execute("SELECT id FROM usuarios WHERE email = %s", (email,))
-                if cur.fetchone():
-                    flash('Email ya registrado', 'warning')
-                    return redirect(url_for('register'))
-                password_hash = generate_password_hash(password)
-                cur.execute("INSERT INTO usuarios (nombre, email, password_hash) VALUES (%s, %s, %s)", (nombre, email, password_hash))
-                conn.commit()
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM usuarios WHERE email = %s", (email,))
+            if cur.fetchone():
+                flash('Email ya registrado', 'warning')
+                cur.close()
+                return redirect(url_for('register'))
+            password_hash = generate_password_hash(password)
+            cur.execute("INSERT INTO usuarios (nombre, email, password_hash) VALUES (%s, %s, %s)", (nombre, email, password_hash))
+            conn.commit()
+            cur.close()
         finally:
             conn.close()
         flash('Registro exitoso!', 'success')
@@ -264,11 +268,12 @@ def logout():
 def dashboard():
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) as total_outfits FROM outfits WHERE usuario_id = %s", (session['user_id'],))
-            stats = cur.fetchone()
-            cur.execute("SELECT o.*, GROUP_CONCAT(p.nombre SEPARATOR ', ') as prendas, COUNT(op.id) as num_prendas FROM outfits o LEFT JOIN outfit_prendas op ON o.id = op.outfit_id LEFT JOIN prendas p ON op.prenda_id = p.id WHERE o.usuario_id = %s GROUP BY o.id ORDER BY o.fecha_creacion DESC LIMIT 10", (session['user_id'],))
-            outfits = cur.fetchall()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) as total_outfits FROM outfits WHERE usuario_id = %s", (session['user_id'],))
+        stats = cur.fetchone()
+        cur.execute("SELECT o.*, GROUP_CONCAT(p.nombre SEPARATOR ', ') as prendas, COUNT(op.id) as num_prendas FROM outfits o LEFT JOIN outfit_prendas op ON o.id = op.outfit_id LEFT JOIN prendas p ON op.prenda_id = p.id WHERE o.usuario_id = %s GROUP BY o.id ORDER BY o.fecha_creacion DESC LIMIT 10", (session['user_id'],))
+        outfits = cur.fetchall()
+        cur.close()
     finally:
         conn.close()
     return render_template('dashboard.html', stats=stats, outfits=outfits)
@@ -279,18 +284,19 @@ def dashboard():
 def catalogo(genero=None, categoria=None):
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            query = "SELECT * FROM prendas WHERE 1=1"
-            params = []
-            if genero in ['hombre', 'mujer']:
-                query += " AND genero = %s"
-                params.append(genero)
-            if categoria in ['camisas', 'playeras', 'pantalones', 'vestidos', 'faldas', 'chaquetas', 'zapatos']:
-                query += " AND categoria = %s"
-                params.append(categoria)
-            query += " ORDER BY categoria, nombre"
-            cur.execute(query, tuple(params))
-            prendas = cur.fetchall()
+        cur = conn.cursor()
+        query = "SELECT * FROM prendas WHERE 1=1"
+        params = []
+        if genero in ['hombre', 'mujer']:
+            query += " AND genero = %s"
+            params.append(genero)
+        if categoria in ['camisas', 'playeras', 'pantalones', 'vestidos', 'faldas', 'chaquetas', 'zapatos']:
+            query += " AND categoria = %s"
+            params.append(categoria)
+        query += " ORDER BY categoria, nombre"
+        cur.execute(query, tuple(params))
+        prendas = cur.fetchall()
+        cur.close()
     finally:
         conn.close()
     return render_template('catalogo.html', prendas=prendas, genero=genero, categoria=categoria)
@@ -346,9 +352,10 @@ def probador():
     
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM prendas ORDER BY genero, categoria")
-            prendas = cur.fetchall()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM prendas ORDER BY genero, categoria")
+        prendas = cur.fetchall()
+        cur.close()
     finally:
         conn.close()
     
@@ -390,9 +397,10 @@ def api_try_on():
     # Obtener prenda
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT imagen FROM prendas WHERE id = %s", (prenda_id,))
-            prenda = cur.fetchone()
+        cur = conn.cursor()
+        cur.execute("SELECT imagen FROM prendas WHERE id = %s", (prenda_id,))
+        prenda = cur.fetchone()
+        cur.close()
     finally:
         conn.close()
     
@@ -460,21 +468,23 @@ def outfits():
         prendas_ids = request.form.getlist('prendas[]')
         conn = get_db_connection()
         try:
-            with conn.cursor() as cur:
-                cur.execute("INSERT INTO outfits (usuario_id, nombre, imagen_resultado) VALUES (%s, %s, %s)", (session['user_id'], nombre, imagen_resultado))
-                outfit_id = cur.lastrowid
-                for prenda_id in prendas_ids:
-                    cur.execute("INSERT INTO outfit_prendas (outfit_id, prenda_id) VALUES (%s, %s)", (outfit_id, prenda_id))
-                conn.commit()
+            cur = conn.cursor()
+            cur.execute("INSERT INTO outfits (usuario_id, nombre, imagen_resultado) VALUES (%s, %s, %s)", (session['user_id'], nombre, imagen_resultado))
+            outfit_id = cur.lastrowid
+            for prenda_id in prendas_ids:
+                cur.execute("INSERT INTO outfit_prendas (outfit_id, prenda_id) VALUES (%s, %s)", (outfit_id, prenda_id))
+            conn.commit()
+            cur.close()
         finally:
             conn.close()
         flash('Outfit guardado!', 'success')
         return redirect(url_for('dashboard'))
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM prendas ORDER BY nombre")
-            prendas = cur.fetchall()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM prendas ORDER BY nombre")
+        prendas = cur.fetchall()
+        cur.close()
     finally:
         conn.close()
     return render_template('outfits.html', prendas=prendas)
@@ -484,13 +494,15 @@ def outfits():
 def delete_outfit(outfit_id):
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT usuario_id FROM outfits WHERE id = %s", (outfit_id,))
-            outfit = cur.fetchone()
-            if not outfit or outfit['usuario_id'] != session['user_id']:
-                return jsonify({'error': 'No autorizado'}), 403
-            cur.execute("DELETE FROM outfits WHERE id = %s", (outfit_id,))
-            conn.commit()
+        cur = conn.cursor()
+        cur.execute("SELECT usuario_id FROM outfits WHERE id = %s", (outfit_id,))
+        outfit = cur.fetchone()
+        if not outfit or outfit['usuario_id'] != session['user_id']:
+            cur.close()
+            return jsonify({'error': 'No autorizado'}), 403
+        cur.execute("DELETE FROM outfits WHERE id = %s", (outfit_id,))
+        conn.commit()
+        cur.close()
     finally:
         conn.close()
     return jsonify({'success': True})
@@ -501,17 +513,18 @@ def api_prendas():
     categoria = request.args.get('categoria')
     conn = get_db_connection()
     try:
-        with conn.cursor() as cur:
-            query = "SELECT * FROM prendas WHERE 1=1"
-            params = []
-            if genero:
-                query += " AND genero = %s"
-                params.append(genero)
-            if categoria:
-                query += " AND categoria = %s"
-                params.append(categoria)
-            cur.execute(query, tuple(params))
-            prendas = cur.fetchall()
+        cur = conn.cursor()
+        query = "SELECT * FROM prendas WHERE 1=1"
+        params = []
+        if genero:
+            query += " AND genero = %s"
+            params.append(genero)
+        if categoria:
+            query += " AND categoria = %s"
+            params.append(categoria)
+        cur.execute(query, tuple(params))
+        prendas = cur.fetchall()
+        cur.close()
     finally:
         conn.close()
     return jsonify(prendas)
