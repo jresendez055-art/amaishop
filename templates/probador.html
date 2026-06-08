@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+{% block title %}Probador Virtual{% endblock %}
+
+{% block extra_css %}
+<style>
+    .canvas-container { background: #e9ecef; border-radius: 12px; min-height: 500px; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .prenda-thumb { width: 80px; height: 100px; object-fit: cover; border-radius: 8px; cursor: pointer; transition: all 0.3s ease; border: 2px solid transparent; }
+    .prenda-thumb:hover, .prenda-thumb.active { border-color: var(--accent-color); transform: scale(1.05); }
+    .range-slider { -webkit-appearance: none; width: 100%; height: 6px; border-radius: 5px; background: #e9ecef; outline: none; }
+    .range-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--accent-color); cursor: pointer; }
+    .user-photo { max-height: 600px; border-radius: 8px; }
+    .overlay-container { position: relative; display: inline-block; }
+    .prenda-overlay { position: absolute; top: 0; left: 0; max-width: 200px; cursor: move; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row">
+        <div class="col-12 mb-4">
+            <h1 class="brand-font">Probador Virtual</h1>
+            <p class="text-muted">Sube tu foto y prueba prendas</p>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Área de Trabajo -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-0">
+                    {% if not last_photo %}
+                    <!-- Formulario de subida -->
+                    <div class="p-5 text-center">
+                        <i class="bi bi-cloud-upload fs-1 text-muted mb-3"></i>
+                        <h4>Sube tu foto de cuerpo completo</h4>
+                        <p class="text-muted mb-4">Formatos: JPG, PNG (max. 16MB)</p>
+                        <form method="POST" enctype="multipart/form-data" class="mx-auto" style="max-width: 400px;">
+                            <div class="mb-3">
+                                <input type="file" name="foto" class="form-control" accept="image/*" required onchange="previewImage(this)">
+                            </div>
+                            <div id="preview" class="mb-3 d-none">
+                                <img src="" class="img-fluid rounded" style="max-height: 300px;">
+                            </div>
+                            <button type="submit" class="btn btn-accent w-100">
+                                <i class="bi bi-upload me-2"></i>Subir Foto
+                            </button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <!-- Canvas con foto -->
+                    <div class="canvas-container p-3">
+                        <div class="overlay-container" id="photoContainer">
+                            <img id="userPhoto" src="{{ url_for('static', filename='images/uploads/' + last_photo) }}" class="user-photo" alt="Tu foto">
+                            <img id="prendaOverlay" src="" class="prenda-overlay d-none" alt="Prenda">
+                        </div>
+                    </div>
+                    
+                    <!-- Controles -->
+                    <div class="p-3 border-top">
+                        <div class="row g-3 align-items-center">
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">Escala</label>
+                                <input type="range" id="scaleControl" class="range-slider" min="0.5" max="2" step="0.1" value="1">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">Posicion X</label>
+                                <input type="range" id="posXControl" class="range-slider" min="-200" max="200" step="10" value="0">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-bold">Posicion Y</label>
+                                <input type="range" id="posYControl" class="range-slider" min="-200" max="200" step="10" value="0">
+                            </div>
+                            <div class="col-md-3">
+                                <button id="processBtn" class="btn btn-accent w-100" onclick="processTryOn()">
+                                    <i class="bi bi-magic me-2"></i>Aplicar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Resultado -->
+            <div id="resultSection" class="mt-4 d-none">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-white">
+                        <h5 class="mb-0"><i class="bi bi-check-circle-fill text-success me-2"></i>Resultado</h5>
+                    </div>
+                    <div class="card-body text-center">
+                        <img id="finalResult" src="" class="img-fluid rounded" style="max-height: 500px;">
+                        <div class="mt-3">
+                            <button class="btn btn-accent" onclick="saveOutfit()">
+                                <i class="bi bi-heart me-2"></i>Guardar Outfit
+                            </button>
+                            <button class="btn btn-outline-dark" onclick="downloadResult()">
+                                <i class="bi bi-download me-2"></i>Descargar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel de Prendas -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm p-3">
+                <h5 class="mb-3"><i class="bi bi-grid-3x3-gap me-2"></i>Seleccionar Prenda</h5>
+                
+                <div class="btn-group w-100 mb-3">
+                    <button class="btn btn-outline-secondary btn-sm active" onclick="filterPrendas('all')">Todos</button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="filterPrendas('hombre')">Hombre</button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="filterPrendas('mujer')">Mujer</button>
+                </div>
+                
+                <div class="row g-2" id="prendasGrid" style="max-height: 500px; overflow-y: auto;">
+                    {% for prenda in prendas %}
+                    <div class="col-4 prenda-item" data-genero="{{ prenda.genero }}">
+                        <div onclick="selectPrenda({{ prenda.id }}, '{{ prenda.imagen }}', '{{ prenda.nombre }}')">
+                            <img src="{{ url_for('static', filename='images/' + prenda.imagen) }}" class="prenda-thumb w-100" alt="{{ prenda.nombre }}" onerror="this.src='https://via.placeholder.com/80x100?text={{ prenda.categoria }}'">
+                            <small class="d-block text-center text-truncate" style="font-size: 0.7rem;">{{ prenda.nombre }}</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                <div id="selectedPrendaInfo" class="mt-3 p-3 bg-light rounded d-none">
+                    <h6 class="mb-1" id="selectedName"></h6>
+                    <p class="mb-0 small text-muted" id="selectedCategory"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Guardar Outfit -->
+<div class="modal fade" id="saveOutfitModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Guardar Outfit</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('outfits') }}" method="POST">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre del Outfit</label>
+                        <input type="text" name="nombre" class="form-control" required placeholder="Ej: Look Casual Viernes">
+                    </div>
+                    <input type="hidden" name="imagen_resultado" id="resultImageInput">
+                    <input type="hidden" name="prendas[]" id="prendaIdInput">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-accent">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Variables globales (usar window para evitar conflictos con script.js)
+window.currentPrendaId = null;
+window.currentPrendaImage = null;
+window.currentPrendaName = null;
+window.lastPhoto = '{{ last_photo }}';
+
+console.log('=== PROBADOR HTML CARGADO ===');
+console.log('lastPhoto:', window.lastPhoto);
+
+function previewImage(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.querySelector('#preview img').src = e.target.result;
+            document.getElementById('preview').classList.remove('d-none');
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function filterPrendas(genero) {
+    document.querySelectorAll('.prenda-item').forEach(item => {
+        item.style.display = (genero === 'all' || item.dataset.genero === genero) ? 'block' : 'none';
+    });
+    
+    document.querySelectorAll('.btn-group .btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.textContent.toLowerCase().includes(genero) || (genero === 'all' && btn.textContent === 'Todos')) {
+            btn.classList.add('active');
+        }
+    });
+}
+
+function selectPrenda(id, imagen, nombre) {
+    window.currentPrendaId = id;
+    window.currentPrendaImage = imagen;
+    window.currentPrendaName = nombre;
+    
+    document.querySelectorAll('.prenda-thumb').forEach(t => t.classList.remove('active'));
+    event.target.closest('.prenda-item').querySelector('.prenda-thumb').classList.add('active');
+    
+    const overlay = document.getElementById('prendaOverlay');
+    if (overlay) {
+        overlay.src = '/static/images/' + imagen;
+        overlay.classList.remove('d-none');
+        makeDraggable(overlay);
+    }
+    
+    document.getElementById('selectedName').textContent = nombre;
+    document.getElementById('selectedCategory').textContent = 'ID: ' + id;
+    document.getElementById('selectedPrendaInfo').classList.remove('d-none');
+    
+    document.getElementById('scaleControl').value = 1;
+    document.getElementById('posXControl').value = 0;
+    document.getElementById('posYControl').value = 0;
+    updateOverlayTransform();
+}
+
+function makeDraggable(element) {
+    let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+    element.onmousedown = dragMouseDown;
+
+    function dragMouseDown(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        document.onmouseup = closeDragElement;
+        document.onmousemove = elementDrag;
+    }
+
+    function elementDrag(e) {
+        e.preventDefault();
+        pos1 = pos3 - e.clientX;
+        pos2 = pos4 - e.clientY;
+        pos3 = e.clientX;
+        pos4 = e.clientY;
+        element.style.top = (element.offsetTop - pos2) + "px";
+        element.style.left = (element.offsetLeft - pos1) + "px";
+    }
+
+    function closeDragElement() {
+        document.onmouseup = null;
+        document.onmousemove = null;
+    }
+}
+
+function updateOverlayTransform() {
+    const overlay = document.getElementById('prendaOverlay');
+    if (overlay) {
+        const scale = document.getElementById('scaleControl').value;
+        overlay.style.transform = `scale(${scale})`;
+    }
+}
+
+document.getElementById('scaleControl')?.addEventListener('input', updateOverlayTransform);
+document.getElementById('posXControl')?.addEventListener('input', function() {
+    const overlay = document.getElementById('prendaOverlay');
+    if (overlay) overlay.style.left = this.value + 'px';
+});
+document.getElementById('posYControl')?.addEventListener('input', function() {
+    const overlay = document.getElementById('prendaOverlay');
+    if (overlay) overlay.style.top = this.value + 'px';
+});
+
+function processTryOn() {
+    console.log('=== PROCESS TRY ON ===');
+    console.log('lastPhoto:', window.lastPhoto);
+    console.log('currentPrendaId:', window.currentPrendaId);
+    
+    // VERIFICAR FOTO
+    if (!window.lastPhoto || window.lastPhoto === 'None' || window.lastPhoto === '') {
+        alert('No hay foto cargada. Sube una foto primero.');
+        return;
+    }
+    
+    if (!window.currentPrendaId) {
+        alert('Selecciona una prenda primero');
+        return;
+    }
+    
+    const btn = document.getElementById('processBtn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Procesando...';
+    btn.disabled = true;
+    
+    const data = {
+        photo: window.lastPhoto,
+        prenda_id: window.currentPrendaId,
+        scale: document.getElementById('scaleControl').value,
+        pos_x: document.getElementById('posXControl').value,
+        pos_y: document.getElementById('posYControl').value
+    };
+    
+    console.log('Enviando datos:', data);
+    
+    fetch('/api/try-on', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => {
+        if (!r.ok) throw new Error('Error HTTP: ' + r.status);
+        return r.json();
+    })
+    .then(data => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        
+        if (data.success) {
+            document.getElementById('finalResult').src = data.result_image;
+            document.getElementById('resultSection').classList.remove('d-none');
+            document.getElementById('resultImageInput').value = data.result_image;
+            document.getElementById('prendaIdInput').value = window.currentPrendaId;
+            document.getElementById('resultSection').scrollIntoView({behavior: 'smooth'});
+        } else {
+            alert('Error: ' + (data.error || 'Desconocido'));
+        }
+    })
+    .catch(error => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        console.error('Error:', error);
+        alert('Error de conexion: ' + error.message);
+    });
+}
+
+function saveOutfit() {
+    new bootstrap.Modal(document.getElementById('saveOutfitModal')).show();
+}
+
+function downloadResult() {
+    const link = document.createElement('a');
+    link.download = 'amai-outfit.png';
+    link.href = document.getElementById('finalResult').src;
+    link.click();
+}
+</script>
+{% endblock %}

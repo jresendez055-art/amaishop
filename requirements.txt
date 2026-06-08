@@ -1,0 +1,7 @@
+Flask
+pymysql
+Werkzeug
+opencv-python
+mediapipe
+Pillow
+python-dotenv

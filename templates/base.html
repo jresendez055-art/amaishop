@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="es" data-bs-theme="{{ session.get('theme', 'light') }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Amai Shop{% endblock %} | Probador Virtual</title>
+    
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- CSS Personalizado -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg sticky-top bg-body-tertiary shadow-sm">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="bi bi-scissors me-2"></i>Amai Shop
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}">Inicio</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('catalogo') }}">Catálogo</a>
+                    </li>
+                    
+                    {% if session.get('user_id') %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('probador') }}">
+                            <i class="bi bi-camera me-1"></i>Probador
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">
+                            <i class="bi bi-person me-1"></i>Mi Cuenta
+                        </a>
+                    </li>
+                    <li class="nav-item ms-2">
+                        <a class="btn btn-outline-dark btn-sm" href="{{ url_for('logout') }}">
+                            <i class="bi bi-box-arrow-right me-1"></i>Salir
+                        </a>
+                    </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('login') }}">Iniciar Sesión</a>
+                    </li>
+                    <li class="nav-item ms-2">
+                        <a class="btn btn-accent" href="{{ url_for('register') }}">Registrarse</a>
+                    </li>
+                    {% endif %}
+                    
+                    <li class="nav-item ms-3">
+                        <div class="theme-toggle" onclick="toggleTheme()">
+                            <i class="bi bi-moon-stars" id="themeIcon"></i>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages / Toast Container -->
+    <div class="toast-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="toast align-items-center text-white bg-{{ 'danger' if category == 'danger' else 'success' if category == 'success' else 'warning' if category == 'warning' else 'info' }} border-0 fade show" role="alert">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            <i class="bi bi-{{ 'exclamation-triangle-fill' if category == 'danger' else 'check-circle-fill' if category == 'success' else 'exclamation-circle-fill' if category == 'warning' else 'info-circle-fill' }} me-2"></i>
+                            {{ message }}
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                    </div>
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Main Content -->
+    <main class="fade-in">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-white py-5 mt-5" style="background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <h4 class="brand-font mb-3" style="color: #ffffff; font-size: 1.5rem;">Amai Shop</h4>
+                    <p style="color: #cccccc; font-size: 1rem; line-height: 1.6;">Tu probador virtual inteligente. Experimenta la moda del futuro hoy.</p>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <h5 class="mb-3" style="color: #ffffff; font-size: 1.2rem;">Enlaces</h5>
+                    <ul class="list-unstyled">
+                        <li class="mb-2"><a href="{{ url_for('catalogo', genero='hombre') }}" style="color: #cccccc; text-decoration: none; font-size: 1rem;">Hombre</a></li>
+                        <li class="mb-2"><a href="{{ url_for('catalogo', genero='mujer') }}" style="color: #cccccc; text-decoration: none; font-size: 1rem;">Mujer</a></li>
+                        <li class="mb-2"><a href="{{ url_for('probador') }}" style="color: #cccccc; text-decoration: none; font-size: 1rem;">Probador Virtual</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <h5 class="mb-3" style="color: #ffffff; font-size: 1.2rem;">Contacto</h5>
+                    <p class="mb-2" style="color: #cccccc; font-size: 1rem;">
+                        <i class="bi bi-envelope me-2" style="color: #c9a96e;"></i>josueresendez1607@gmail.com
+                    </p>
+                    <p class="mb-2" style="color: #cccccc; font-size: 1rem;">
+                        <i class="bi bi-telephone me-2" style="color: #c9a96e;"></i>
+                        <a href="tel:+528971000931" style="color: #c9a96e; text-decoration: none; font-weight: 500;">897-100-0931</a>
+                    </p>
+                    <p style="color: #cccccc; font-size: 1rem;">
+                        <i class="bi bi-whatsapp me-2" style="color: #25d366;"></i>
+                        <a href="https://wa.me/528971000931" target="_blank" style="color: #25d366; text-decoration: none; font-weight: 500;">WhatsApp</a>
+                    </p>
+                </div>
+            </div>
+            <hr style="border-color: #444444; margin: 2rem 0;">
+            <div class="text-center">
+                <small style="color: #888888; display: block; margin-bottom: 0.5rem;">&copy; 2024 Amai Shop. Todos los derechos reservados.</small>
+                <small style="color: #888888; display: block;">Desarrollado con ❤️ para tu estilo</small>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ============================================ -->
+    <!-- SCRIPTS - ORDEN IMPORTANTE -->
+    <!-- ============================================ -->
+    
+    <!-- 1. Bootstrap JS (primero) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- 2. JavaScript Personalizado de Amai Shop -->
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    
+    <!-- 3. Script inline para inicialización específica de base -->
+    <script>
+        // Auto-hide toasts nativos de Bootstrap
+        document.querySelectorAll('.toast').forEach(toast => {
+            setTimeout(() => {
+                const bsToast = bootstrap.Toast.getInstance(toast);
+                if (bsToast) {
+                    bsToast.hide();
+                }
+            }, 5000);
+        });
+        
+        // Inicializar tema guardado en localStorage (fallback si script.js no carga)
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme) {
+                document.documentElement.setAttribute('data-bs-theme', savedTheme);
+                const icon = document.getElementById('themeIcon');
+                if (icon) {
+                    icon.className = savedTheme === 'dark' ? 'bi bi-sun' : 'bi bi-moon-stars';
+                }
+            }
+        })();
+    </script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

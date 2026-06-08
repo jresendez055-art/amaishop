@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Guardar Outfit{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card border-0 shadow-lg">
+                <div class="card-body p-5">
+                    <h2 class="brand-font text-center mb-4">Guardar Outfit</h2>
+                    <form method="POST">
+                        <div class="mb-3"><label class="form-label">Nombre del Outfit</label><input type="text" name="nombre" class="form-control form-control-lg" placeholder="Ej: Look Casual Viernes" required></div>
+                        <div class="mb-3"><label class="form-label">Prendas</label><div class="row g-2">{% for prenda in prendas %}<div class="col-4"><div class="form-check"><input class="form-check-input" type="checkbox" name="prendas[]" value="{{ prenda.id }}" id="p{{ prenda.id }}"><label class="form-check-label small" for="p{{ prenda.id }}">{{ prenda.nombre }}</label></div></div>{% endfor %}</div></div>
+                        <button type="submit" class="btn btn-accent w-100 btn-lg"><i class="bi bi-heart me-2"></i>Guardar Outfit</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
