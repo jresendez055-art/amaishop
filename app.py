@@ -2,6 +2,7 @@ import os
 import cv2
 import numpy as np
 import pymysql
+import sqlite3
 from datetime import datetime
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -18,9 +19,16 @@ app.secret_key = os.getenv('SECRET_KEY', 'amai-shop-secret-key-2024')
 user_photos = {}
 
 # ============================================
-# CONEXION MYSQL CON PYMYSQL
+# CONEXION A BASE DE DATOS (MySQL local / SQLite en Render)
 # ============================================
 def get_db_connection():
+    # Si estamos en Render (producción), usar SQLite
+    if os.getenv('RENDER'):
+        conn = sqlite3.connect('database.db')
+        conn.row_factory = sqlite3.Row
+        return conn
+    
+    # Si estamos en local, usar MySQL
     return pymysql.connect(
         host=os.getenv('MYSQL_HOST', 'localhost'),
         user=os.getenv('MYSQL_USER', 'root'),
@@ -29,6 +37,94 @@ def get_db_connection():
         cursorclass=pymysql.cursors.DictCursor,
         charset='utf8mb4'
     )
+
+# ============================================
+# INICIALIZAR BASE DE DATOS SQLITE EN RENDER
+# ============================================
+def init_sqlite_db():
+    if not os.getenv('RENDER'):
+        return
+    
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    
+    # Tabla usuarios
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL
+        )
+    ''')
+    
+    # Tabla prendas
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS prendas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            categoria TEXT,
+            genero TEXT,
+            imagen TEXT,
+            precio REAL DEFAULT 0
+        )
+    ''')
+    
+    # Tabla outfits
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS outfits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER,
+            nombre TEXT,
+            imagen_resultado TEXT,
+            fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Tabla outfit_prendas
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS outfit_prendas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            outfit_id INTEGER,
+            prenda_id INTEGER
+        )
+    ''')
+    
+    # Insertar prendas de ejemplo si la tabla está vacía
+    cursor.execute("SELECT COUNT(*) FROM prendas")
+    if cursor.fetchone()[0] == 0:
+        prendas_ejemplo = [
+            ('Camisa Oxford', 'camisas', 'hombre', 'ropa/hombre/camisa_oxford.png', 599),
+            ('Camisa Denim', 'camisas', 'hombre', 'ropa/hombre/camisa_denim.png', 499),
+            ('Playera Negra', 'playeras', 'hombre', 'ropa/hombre/playera_negra.png', 299),
+            ('Playera Estampada', 'playeras', 'hombre', 'ropa/hombre/playera_estampada.png', 349),
+            ('Jeans Slim', 'pantalones', 'hombre', 'ropa/hombre/jeans_slim.png', 799),
+            ('Chinos Caqui', 'pantalones', 'hombre', 'ropa/hombre/chinos_caqui.png', 699),
+            ('Bomber Jacket', 'chaquetas', 'hombre', 'ropa/hombre/bomber.png', 899),
+            ('Derby Shoes', 'zapatos', 'hombre', 'ropa/hombre/derby.png', 1299),
+            ('Blusa Seda', 'blusas', 'mujer', 'ropa/mujer/blusa_seda.png', 549),
+            ('Camisa Oversize', 'camisas', 'mujer', 'ropa/mujer/camisa_oversize.png', 499),
+            ('Crop Top', 'tops', 'mujer', 'ropa/mujer/crop_top.png', 299),
+            ('Vestido Floral', 'vestidos', 'mujer', 'ropa/mujer/vestido_floral.png', 899),
+            ('Vestido Negro', 'vestidos', 'mujer', 'ropa/mujer/vestido_negro.png', 799),
+            ('Falda Midi', 'faldas', 'mujer', 'ropa/mujer/falda_midi.png', 599),
+            ('Jeans Mom', 'pantalones', 'mujer', 'ropa/mujer/jeans_mom.png', 749),
+            ('Trench Coat', 'chaquetas', 'mujer', 'ropa/mujer/trench.png', 1299),
+            ('Zapatillas', 'zapatos', 'mujer', 'ropa/mujer/zapatillas.png', 899),
+            ('Tacones Nude', 'zapatos', 'mujer', 'ropa/mujer/tacones_nude.png', 1099)
+        ]
+        cursor.executemany('''
+            INSERT INTO prendas (nombre, categoria, genero, imagen, precio)
+            VALUES (?, ?, ?, ?, ?)
+        ''', prendas_ejemplo)
+        print("✅ Prendas de ejemplo insertadas en SQLite")
+    
+    conn.commit()
+    conn.close()
+    print("✅ Base de datos SQLite inicializada")
+
+# Inicializar base de datos al arrancar
+init_sqlite_db()
 
 # ============================================
 # CONFIGURACION ARCHIVOS
@@ -436,7 +532,10 @@ def internal_error(error):
 
 if __name__ == '__main__':
     print("=" * 50)
-    print(" AMAI SHOP - CONECTADO A PHPMYADMIN")
+    if os.getenv('RENDER'):
+        print(" AMAI SHOP - MODO RENDER (SQLite)")
+    else:
+        print(" AMAI SHOP - MODO LOCAL (MySQL)")
     print("=" * 50)
     print(" Abre: http://localhost:5000")
     print("=" * 50)
